@@ -32,6 +32,7 @@ public class MainActivity extends AppCompatActivity implements MainPresenter.Vie
         setContentView(mGreeting);
         Injector.with(this)
                 .bindToLifecycle(this)
+                .retainOnConfigChange(true)
                 .build(MainComponent.class, new Injector.ComponentFactory<MainComponent>() {
                     @Override
                     public MainComponent create() {

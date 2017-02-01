@@ -21,6 +21,4 @@ android {
 dependencies {
     compile project(':lib')
     compile 'com.android.support:appcompat-v7:24.+'
-
-    annotationProcessor 'com.google.dagger:dagger-compiler:2.8'
 }

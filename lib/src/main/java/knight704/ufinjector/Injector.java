@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.app.Application;
 import android.app.Fragment;
 import android.content.Context;
+import android.support.annotation.VisibleForTesting;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -12,16 +13,11 @@ import dagger.Component;
 import dagger.Subcomponent;
 
 /**
- * Created by Dmitrii_Ivashkin.
+ * Created by Knight704.
  * This class is responsible for creating dagger components via convenient builder-style and keeping them in map-cache.
  */
 public class Injector {
     private static Injector sInstance = new Injector();
-
-    /**
-     * This map contains groups of dagger components by its type.
-     * Reason for holding multiple components is the fact that there could be many activity/fragments that should have their own (unique) object graph.
-     */
     private Map<Class, Map<String, Object>> mComponentGroups = new HashMap<>();
 
     private Injector() {
@@ -64,7 +60,7 @@ public class Injector {
     public static class InjectRequest {
         private Application mApp;
         private Class mComponentClass;
-        private boolean mReleaseOnConfigChange;
+        private boolean mRetainOnConfigChange;
         private boolean mAllowComponentDuplicates;
         private String mDuplicateKey;
 
@@ -73,11 +69,11 @@ public class Injector {
         }
 
         /**
-         * Mark that component should not be retained across config change.
+         * Mark that component should be retained across config changes.
          * Use in conjunction with {@link #bindToLifecycle(Activity)} or {@link #bindToLifecycle(Fragment)}
          */
-        public InjectRequest releaseOnConfigChange(boolean releaseOnConfigChange) {
-            mReleaseOnConfigChange = releaseOnConfigChange;
+        public InjectRequest retainOnConfigChange(boolean retainOnConfigChange) {
+            mRetainOnConfigChange = retainOnConfigChange;
             return this;
         }
 
@@ -93,20 +89,19 @@ public class Injector {
         }
 
         /**
-         * Call to this method will add opportunity to automatically keep track of component lifecycle according to activity lifecycle.
-         * If you call {@link #releaseOnConfigChange(boolean)} during construction it will ensure that component wouldn't be retained across activity
-         * recreation (even when it is just configuration change).
+         * Call to this method will add listener to keep track of component lifecycle according to activity lifecycle.
          * <p>
-         * Note, when you retain component across config changes, keep in mind that component will be retrieved from cache, so be careful with items that you
-         * consider scope-singleton in that component, because they stay intact. It may produce undesired behavior.
-         * For example: component that has module with activity link inside may lead to leak of this activity.
+         * Note, when you retain component across config changes, keep in mind that component instance will be stored in singleton cache, so be careful
+         * with items that you consider scope-singleton in that component, because they stay intact. It may produce undesired behavior
+         * (i.e component that has module with activity link inside may lead to memory leak of this activity).
          */
         public InjectRequest bindToLifecycle(final Activity bindedActivity) {
             mApp.registerActivityLifecycleCallbacks(new ActivityLifecycleCallbacksAdapter() {
                 @Override
                 public void onActivityStopped(Activity activity) {
                     if (activity == bindedActivity) {
-                        if (activity.isFinishing() || mReleaseOnConfigChange) {
+                        boolean shouldRelease = activity.isFinishing() || (activity.isChangingConfigurations() && !mRetainOnConfigChange);
+                        if (shouldRelease) {
                             if (mAllowComponentDuplicates) {
                                 sInstance.release(mComponentClass, mDuplicateKey);
                             } else {
@@ -122,27 +117,27 @@ public class Injector {
 
         /**
          * Same as {@link #bindToLifecycle(Activity)} but for fragment. For now it just delegate call to the mentioned method with fragment activity.
-         * Seems legit, but should be revisited in a greater depth in the future.
+         * TODO: This should be revisited in a greater depth to cover complex fragment cases. Use with extreme caution if you know what you do.
          */
         public InjectRequest bindToLifecycle(Fragment fragment) {
             return bindToLifecycle(fragment.getActivity());
         }
 
         /**
-         * Provide component class and related factory. Class should be annotated with {@link Component} or {@link Subcomponent}, thus be compatible with dagger2.
-         * Factory here is used for creating component from scratch if it wasn't stored in cache before.
+         * Provide component class and related factory. Class should be annotated with {@link Component} or {@link Subcomponent}, thus be valid component
+         * compatible with dagger2. Factory here is used for creating component from scratch if it wasn't stored in cache before.
          *
-         * @param componentClass   Component class.
+         * @param componentClass   component class.
          * @param componentFactory factory instance that would be used to create new component in case it is not present in cache.
          * @param <T>              component type.
-         * @return component (cached or created via factory).
+         * @return component (existing one if cached otherwise will be created via provided factory).
          */
         public <T> T build(Class<T> componentClass, ComponentFactory<T> componentFactory) {
             if (componentClass == null || componentFactory == null) {
-                throw new IllegalArgumentException("Component class or factory is not provided, call #component before #build");
+                throw new IllegalArgumentException("Component class or factory is not provided");
             }
             if (!isDaggerComponent(componentClass)) {
-                throw new IllegalArgumentException(String.format("Class %s isn't a Dagger component/subcomponent", componentClass.getName()));
+                throw new IllegalArgumentException(String.format("Class %s isn't a Dagger2 compatible component/subcomponent", componentClass.getName()));
             }
             mComponentClass = componentClass;
             if (mAllowComponentDuplicates) {
@@ -158,7 +153,13 @@ public class Injector {
         }
     }
 
-    public interface ComponentFactory<T> {
-        T create();
+    @VisibleForTesting
+    static void clearComponents() {
+        sInstance.mComponentGroups.clear();
+    }
+
+    @VisibleForTesting
+    static Map<Class, Map<String, Object>> getComponentGroups() {
+        return sInstance.mComponentGroups;
     }
 }

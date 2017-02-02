@@ -37,7 +37,7 @@ public class InjectorTest {
         when(mMockFactory.create()).thenReturn(mMockComponent);
     }
 
-    private Injector.InjectRequest mockInjectRequest() {
+    private InjectRequest mockInjectRequest() {
         Context mockContext = mock(Application.class);
         when(mockContext.getApplicationContext()).thenReturn(mockContext);
         return Injector.with(mockContext);
@@ -100,7 +100,7 @@ public class InjectorTest {
     public void testComponentShouldReleaseAccordingToLifecycle() throws Exception {
         Application mockApp = mock(Application.class);
         when(mockApp.getApplicationContext()).thenReturn(mockApp);
-        Injector.InjectRequest injectRequest = Injector.with(mockApp);
+        InjectRequest injectRequest = Injector.with(mockApp);
         Activity mockActivity = mock(Activity.class);
         when(mockActivity.isFinishing()).thenReturn(true);
         ArgumentCaptor<Application.ActivityLifecycleCallbacks> alcCaptor = ArgumentCaptor.forClass(Application.ActivityLifecycleCallbacks.class);

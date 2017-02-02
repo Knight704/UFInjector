@@ -2,28 +2,55 @@ package knight704.ufinjector;
 
 import android.app.Activity;
 import android.app.Application;
-import android.app.Fragment;
-import android.content.Context;
 
 import dagger.Component;
 import dagger.Subcomponent;
 
+/**
+ * This class represents client-code intention to create or reuse existing Dagger component with support of auto-release according to lifecycle.
+ * TODO: At the moment this class supports auto-release only for Activity lifecycle. Binding to fragment lifecycle should be implemented as well.
+ */
 public class InjectRequest {
-    private Injector mInjector;
-    private Application mApp;
+    private ComponentCache mComponentCache;
     private Class mComponentClass;
     private boolean mRetainOnConfigChange;
     private boolean mAllowComponentDuplicates;
     private String mDuplicateKey;
 
-    public InjectRequest(Injector injector, Context context) {
-        mInjector = injector;
-        mApp = (Application) context;
+    public InjectRequest(ComponentCache componentCache, Activity activity) {
+        mComponentCache = componentCache;
+        bindToLifecycle(activity);
+    }
+
+    /**
+     * This method will keep track of component lifecycle according to activity lifecycle.
+     * <p>
+     * Note, when you retain component across config changes, keep in mind that component instance will be stored in singleton cache, so be careful
+     * with items that you consider scope-singleton in that component, because they stay intact. It may produce undesired behavior
+     * (i.e component that has module with activity link inside may lead to memory leak of this activity).
+     */
+    private void bindToLifecycle(final Activity bindedActivity) {
+        final Application app = bindedActivity.getApplication();
+        app.registerActivityLifecycleCallbacks(new ActivityLifecycleCallbacksAdapter() {
+            @Override
+            public void onActivityStopped(Activity activity) {
+                if (activity == bindedActivity) {
+                    boolean shouldRelease = activity.isFinishing() || (activity.isChangingConfigurations() && !mRetainOnConfigChange);
+                    if (shouldRelease) {
+                        if (mAllowComponentDuplicates) {
+                            mComponentCache.release(mComponentClass, mDuplicateKey);
+                        } else {
+                            mComponentCache.release(mComponentClass);
+                        }
+                    }
+                    app.unregisterActivityLifecycleCallbacks(this);
+                }
+            }
+        });
     }
 
     /**
      * Mark that component should be retained across config changes.
-     * Use in conjunction with {@link #bindToLifecycle(Activity)} or {@link #bindToLifecycle(Fragment)}
      */
     public InjectRequest retainOnConfigChange(boolean retainOnConfigChange) {
         mRetainOnConfigChange = retainOnConfigChange;
@@ -39,41 +66,6 @@ public class InjectRequest {
         mAllowComponentDuplicates = true;
         mDuplicateKey = key;
         return this;
-    }
-
-    /**
-     * Call to this method will add listener to keep track of component lifecycle according to activity lifecycle.
-     * <p>
-     * Note, when you retain component across config changes, keep in mind that component instance will be stored in singleton cache, so be careful
-     * with items that you consider scope-singleton in that component, because they stay intact. It may produce undesired behavior
-     * (i.e component that has module with activity link inside may lead to memory leak of this activity).
-     */
-    public InjectRequest bindToLifecycle(final Activity bindedActivity) {
-        mApp.registerActivityLifecycleCallbacks(new ActivityLifecycleCallbacksAdapter() {
-            @Override
-            public void onActivityStopped(Activity activity) {
-                if (activity == bindedActivity) {
-                    boolean shouldRelease = activity.isFinishing() || (activity.isChangingConfigurations() && !mRetainOnConfigChange);
-                    if (shouldRelease) {
-                        if (mAllowComponentDuplicates) {
-                            mInjector.release(mComponentClass, mDuplicateKey);
-                        } else {
-                            mInjector.release(mComponentClass);
-                        }
-                    }
-                    mApp.unregisterActivityLifecycleCallbacks(this);
-                }
-            }
-        });
-        return this;
-    }
-
-    /**
-     * Same as {@link #bindToLifecycle(Activity)} but for fragment. For now it just delegate call to the mentioned method with fragment activity.
-     * TODO: This should be revisited in a greater depth to cover complex fragment cases. Use with extreme caution if you know what you do.
-     */
-    public InjectRequest bindToLifecycle(Fragment fragment) {
-        return bindToLifecycle(fragment.getActivity());
     }
 
     /**
@@ -94,9 +86,9 @@ public class InjectRequest {
         }
         mComponentClass = componentClass;
         if (mAllowComponentDuplicates) {
-            return mInjector.getOrCreate(componentClass, mDuplicateKey, componentFactory);
+            return mComponentCache.getOrCreate(componentClass, mDuplicateKey, componentFactory);
         } else {
-            return mInjector.getOrCreate(componentClass, componentFactory);
+            return mComponentCache.getOrCreate(componentClass, componentFactory);
         }
     }
 

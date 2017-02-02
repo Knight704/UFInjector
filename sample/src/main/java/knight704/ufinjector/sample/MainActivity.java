@@ -11,6 +11,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 
 import dagger.Component;
+import knight704.ufinjector.ComponentFactory;
 import knight704.ufinjector.Injector;
 
 public class MainActivity extends AppCompatActivity implements MainPresenter.View {
@@ -31,9 +32,8 @@ public class MainActivity extends AppCompatActivity implements MainPresenter.Vie
         });
         setContentView(mGreeting);
         Injector.with(this)
-                .bindToLifecycle(this)
                 .retainOnConfigChange(true)
-                .build(MainComponent.class, new Injector.ComponentFactory<MainComponent>() {
+                .build(MainComponent.class, new ComponentFactory<MainComponent>() {
                     @Override
                     public MainComponent create() {
                         return DaggerMainActivity_MainComponent.create();

@@ -1,6 +1,6 @@
 package knight704.ufinjector;
 
-import android.content.Context;
+import android.app.Activity;
 import android.support.annotation.VisibleForTesting;
 
 import java.util.HashMap;
@@ -10,14 +10,21 @@ import java.util.Map;
  * Created by Knight704.
  * This class is responsible for creating dagger components via convenient builder-style and keeping them in map-cache.
  */
-public class Injector {
+public class Injector implements ComponentCache {
     private static Injector sInstance = new Injector();
     private Map<Class, Map<String, Object>> mComponentGroups = new HashMap<>();
 
-    private Injector() {
+    @VisibleForTesting
+    Injector() {
+    }
+
+    @VisibleForTesting
+    Map<Class, Map<String, Object>> getComponentGroups() {
+        return mComponentGroups;
     }
 
     @SuppressWarnings("unchecked")
+    @Override
     public <T> T getOrCreate(Class<T> componentClass, String key, ComponentFactory<T> componentFactory) {
         Map<String, Object> componentMap = mComponentGroups.get(componentClass);
         if (componentMap == null) {
@@ -32,10 +39,12 @@ public class Injector {
         return component;
     }
 
+    @Override
     public <T> T getOrCreate(Class<T> componentClass, ComponentFactory<T> componentFactory) {
         return getOrCreate(componentClass, componentClass.getName(), componentFactory);
     }
 
+    @Override
     public void release(Class componentClass, String key) {
         Map<String, Object> componentMap = mComponentGroups.get(componentClass);
         if (componentMap != null) {
@@ -43,21 +52,12 @@ public class Injector {
         }
     }
 
+    @Override
     public void release(Class componentClass) {
         release(componentClass, componentClass.getName());
     }
 
-    public static InjectRequest with(Context context) {
-        return new InjectRequest(sInstance, context.getApplicationContext());
-    }
-
-    @VisibleForTesting
-    static void clearComponents() {
-        sInstance.mComponentGroups.clear();
-    }
-
-    @VisibleForTesting
-    static Map<Class, Map<String, Object>> getComponentGroups() {
-        return sInstance.mComponentGroups;
+    public static InjectRequest with(Activity activity) {
+        return new InjectRequest(sInstance, activity);
     }
 }

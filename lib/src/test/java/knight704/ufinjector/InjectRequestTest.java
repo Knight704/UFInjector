@@ -1,8 +1,5 @@
 package knight704.ufinjector;
 
-import android.app.Activity;
-import android.app.Application;
-
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -11,6 +8,7 @@ import org.mockito.Mock;
 import org.mockito.runners.MockitoJUnitRunner;
 
 import dagger.Component;
+import knight704.ufinjector.releasers.ComponentReleaser;
 
 import static junit.framework.Assert.assertTrue;
 import static org.mockito.Mockito.times;
@@ -23,22 +21,19 @@ public class InjectRequestTest {
     @Mock
     protected ComponentCache mMockComponentCache;
     @Mock
-    protected Application mMockApp;
-    @Mock
-    protected Activity mMockActivity;
+    protected ComponentReleaser mMockReleaser;
     @Mock
     protected MockComponent mMockComponent;
     @Mock
     protected ComponentFactory mMockFactory;
 
     private InjectRequest prepareRequest() {
-        return new InjectRequest(mMockComponentCache, mMockActivity);
+        return new InjectRequest(mMockComponentCache, mMockReleaser);
     }
 
     @Before
     public void setUp() {
         when(mMockFactory.create()).thenReturn(mMockComponent);
-        when(mMockActivity.getApplication()).thenReturn(mMockApp);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -84,43 +79,43 @@ public class InjectRequestTest {
     }
 
     @Test
-    public void testComponentShouldReleaseAccordingToActivityLifecycle() throws Exception {
-        when(mMockActivity.isFinishing()).thenReturn(true);
-        ArgumentCaptor<Application.ActivityLifecycleCallbacks> alcCaptor = ArgumentCaptor.forClass(Application.ActivityLifecycleCallbacks.class);
+    public void testComponentShouldRelease() throws Exception {
+        ArgumentCaptor<ComponentReleaser.OnReleaseListener> releaseListenerCaptor = ArgumentCaptor.forClass(ComponentReleaser.OnReleaseListener.class);
 
         prepareRequest().build(MockComponent.class, mMockFactory);
 
-        verify(mMockApp).registerActivityLifecycleCallbacks(alcCaptor.capture());
-        alcCaptor.getValue().onActivityStopped(mMockActivity);
+        dispatchOnRelease(releaseListenerCaptor, false);
         verify(mMockComponentCache).release(MockComponent.class);
     }
 
     @Test
-    public void testRetainOnConfigChangeShouldNotReleaseOnActivityConfigChange() throws Exception {
-        when(mMockActivity.isChangingConfigurations()).thenReturn(true);
-        ArgumentCaptor<Application.ActivityLifecycleCallbacks> alcCaptor = ArgumentCaptor.forClass(Application.ActivityLifecycleCallbacks.class);
+    public void testRetainOnConfigChangeShouldNotRelease() throws Exception {
+        ArgumentCaptor<ComponentReleaser.OnReleaseListener> releaseListenerCaptor = ArgumentCaptor.forClass(ComponentReleaser.OnReleaseListener.class);
 
         prepareRequest()
                 .retainOnConfigChange(true)
                 .build(MockComponent.class, mMockFactory);
 
-        verify(mMockApp).registerActivityLifecycleCallbacks(alcCaptor.capture());
-        alcCaptor.getValue().onActivityStopped(mMockActivity);
+        dispatchOnRelease(releaseListenerCaptor, true);
         verify(mMockComponentCache, times(0)).release(MockComponent.class);
     }
 
     @Test
-    public void testRetainOnConfigChangeShouldReleaseFinishingActivity() throws Exception {
-        when(mMockActivity.isFinishing()).thenReturn(true);
-        ArgumentCaptor<Application.ActivityLifecycleCallbacks> alcCaptor = ArgumentCaptor.forClass(Application.ActivityLifecycleCallbacks.class);
+    public void testRetainOnConfigChangeShouldReleaseIfCantRetain() throws Exception {
+        ArgumentCaptor<ComponentReleaser.OnReleaseListener> releaseListenerCaptor = ArgumentCaptor.forClass(ComponentReleaser.OnReleaseListener.class);
 
         prepareRequest()
                 .retainOnConfigChange(true)
                 .build(MockComponent.class, mMockFactory);
 
-        verify(mMockApp).registerActivityLifecycleCallbacks(alcCaptor.capture());
-        alcCaptor.getValue().onActivityStopped(mMockActivity);
+        dispatchOnRelease(releaseListenerCaptor, false);
         verify(mMockComponentCache).release(MockComponent.class);
+    }
+
+    private void dispatchOnRelease(ArgumentCaptor<ComponentReleaser.OnReleaseListener> captor, boolean canRelease) {
+        verify(mMockReleaser).onRegisterReleaser(captor.capture());
+        captor.getValue().onRelease(canRelease);
+        verify(mMockReleaser).onUnregisterReleaser();
     }
 
     private static class NotComponent {

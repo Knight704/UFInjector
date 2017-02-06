@@ -6,6 +6,9 @@ import android.support.annotation.VisibleForTesting;
 import java.util.HashMap;
 import java.util.Map;
 
+import knight704.ufinjector.releasers.ActivityComponentReleaser;
+import knight704.ufinjector.releasers.ComponentReleaser;
+
 /**
  * Created by Knight704.
  * This class is responsible for creating dagger components via convenient builder-style and keeping them in map-cache.
@@ -58,6 +61,10 @@ public class Injector implements ComponentCache {
     }
 
     public static InjectRequest with(Activity activity) {
-        return new InjectRequest(sInstance, activity);
+        return with(new ActivityComponentReleaser(activity));
+    }
+
+    public static InjectRequest with(ComponentReleaser releaser) {
+        return new InjectRequest(sInstance, releaser);
     }
 }

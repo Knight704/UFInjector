@@ -8,6 +8,8 @@ import java.util.Map;
 
 import knight704.ufinjector.releasers.ActivityComponentReleaser;
 import knight704.ufinjector.releasers.ComponentReleaser;
+import knight704.ufinjector.releasers.fragment.FragmentComponentReleaser;
+import knight704.ufinjector.releasers.fragment.FragmentLifecycleDelegate;
 
 /**
  * Created by Knight704.
@@ -62,6 +64,10 @@ public class Injector implements ComponentCache {
 
     public static InjectRequest with(Activity activity) {
         return with(new ActivityComponentReleaser(activity));
+    }
+
+    public static InjectRequest with(FragmentLifecycleDelegate fragmentDelegate) {
+        return with(new FragmentComponentReleaser(fragmentDelegate));
     }
 
     public static InjectRequest with(ComponentReleaser releaser) {

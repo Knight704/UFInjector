@@ -1,4 +1,10 @@
 apply plugin: 'com.android.library'
+apply plugin: 'com.github.dcendents.android-maven'
+apply plugin: "com.jfrog.bintray"
+
+ext {
+    version = '0.1.0'
+}
 
 android {
     compileSdkVersion 24
@@ -8,9 +14,8 @@ android {
         minSdkVersion 16
         targetSdkVersion 24
         versionCode 1
-        versionName "1.0"
+        versionName project.ext.version
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
-
     }
     buildTypes {
         release {
@@ -30,3 +35,5 @@ dependencies {
     compile 'com.android.support:support-annotations:24.2.1'
     compile 'com.google.dagger:dagger:2.8'
 }
+
+apply from: 'upload.gradle'
